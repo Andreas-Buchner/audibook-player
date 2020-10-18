@@ -1,16 +1,32 @@
-# This is a sample Python script.
-
-# Press Umschalt+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Strg+F8 to toggle the breakpoint.
+from pygame import mixer
+import os
+import time
 
 
-# Press the green button in the gutter to run the script.
+def initialize():
+    books = os.listdir("../Audiobooks")  # hardcoded to be path to USB Stick
+    # database, delete all entries that are not in the current book list -> have already been heard
+    # add all new books to list
+    for book in books:
+        # drop all tables of read books
+        titles = os.listdir("../Audiobooks/{}".format(book))
+        print(len(titles))
+        return titles  # delete this, just for testin
+
+
+def main():
+    t = initialize()
+    test = t[1]
+    print(test)
+
+    mixer.init()
+    mixer.music.load("../Audiobooks/SeaulenDerErde/{}".format(test))
+    mixer.music.play()
+    while mixer.music.get_busy():
+        time.sleep(1)
+        print("sleeping")
+    print("finished")
+
+
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    main()
