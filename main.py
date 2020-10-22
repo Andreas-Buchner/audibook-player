@@ -4,6 +4,10 @@ import sqlite3
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"  # surpresses the unnecessary output of pygame version at import.
 import time
 from pygame import mixer
+from gpiozero import Button
+
+# Start the script with a paused input so if there would be a power loss the audiobooks won't start playing alone
+PLAYING_PAUSED = True
 
 
 def initialize(connection, cursor):
@@ -27,7 +31,7 @@ def initialize(connection, cursor):
               ')')
     connection.commit()
 
-    onUSB = os.listdir("../Audiobooks")  # hardcoded to be path to USB Stick
+    onUSB = os.listdir("../../media/pi/Stick/Audiobooks")  # hardcoded to be path to USB Stick
     print("----------------INIT----------------")
     print("Found on USB:")
     print(onUSB)
@@ -105,8 +109,18 @@ def set_title_heard(connection, cursor, path):
     connection.commit()
 
 
+def toggle_pause():
+    global PLAYING_PAUSED
+    PLAYING_PAUSED = not PLAYING_PAUSED
+
+
 def main():
     connection = sqlite3.connect("FilesDB.db")
+
+    global PLAYING_PAUSED
+
+    button = Button(18)
+    button.when_pressed = toggle_pause
 
     # Changes the output format so we are only getting first column though which is perfectly fine in our case
     connection.row_factory = lambda cursor, row: row[0]
@@ -121,6 +135,7 @@ def main():
         update_book_heard(connection, cursor, book)
 
     current_book = cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone()
+    # MAIN LOOP THAT PLAYS THE TITLE
     while current_book is not None:  # no unheard books left
         print("\nCurrent Book is:")
         print(current_book)
@@ -131,25 +146,26 @@ def main():
 
         mixer.init()
         mixer.music.load("../Audiobooks/" + current_title)  # again hardcode this to go to USB Stick
-        mixer.music.play()
-        while mixer.music.get_busy():  # only thing missing is button input now (pause/resume toggle)
-            time.sleep(1)
-            print("playing")
+        mixer.music.play()  # starts the audio, don't worry it will get stopped at the beginning because
+        while True:
+            if PLAYING_PAUSED:
+                if mixer.music.get_busy():  # pauses in case when pause is pressed and music is playing
+                    mixer.music.pause()
+                time.sleep(0.5)
+            else:
+                if not mixer.get_busy():
+                    mixer.music.unpause()
+                    time.sleep(0.2)  # maybe we throw this away, just some extra time to toggle busy
+                    if not mixer.music.get_busy():  # we tried to unpause but it is still not busy --> finished
+                        break
+                time.sleep(0.5)
+
         set_title_heard(connection, cursor, current_title)
         update_book_heard(connection, cursor, current_book)
         current_book = cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone()
 
     cursor.close()
     connection.close()
-
-
-    #mixer.init()
-    #mixer.music.load("../Audiobooks/SeaulenDerErde/{}".format(test))
-    #mixer.music.play()
-    #while mixer.music.get_busy():
-    #    time.sleep(1)
-    #    print("sleeping")
-    #print("finished")
 
 
 if __name__ == '__main__':
