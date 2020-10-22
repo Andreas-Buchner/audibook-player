@@ -31,7 +31,7 @@ def initialize(connection, cursor):
               ')')
     connection.commit()
 
-    onUSB = os.listdir("../../media/pi/Stick/Audiobooks")  # hardcoded to be path to USB Stick
+    onUSB = os.listdir("../../../media/pi/STICK/Audiobooks")  # hardcoded to be path to USB Stick
     print("----------------INIT----------------")
     print("Found on USB:")
     print(onUSB)
@@ -48,7 +48,7 @@ def initialize(connection, cursor):
         if book not in stored:
             cursor.execute("""
                       INSERT INTO Books (name, heard)
-                      VALUES (?,?) 
+                      VALUES (?,?)
                       """, (book, 0))
             connection.commit()
             cursor.execute("""CREATE TABLE IF NOT EXISTS {} (
@@ -62,8 +62,9 @@ def initialize(connection, cursor):
     for book in onUSB:
         # drop all tables of read books here
 
-        titles = os.listdir("../Audiobooks/{}".format(book))
+        titles = os.listdir("../../../media/pi/STICK/Audiobooks/{}".format(book))
         for title in titles:
+	    print("{}/{}".format(book, title))
             cursor.execute("""
                       INSERT OR IGNORE INTO {} (path, heard)
                       VALUES (?,?)
@@ -141,23 +142,23 @@ def main():
         print(current_book)
 
         current_title = cursor.execute("SELECT * FROM {} WHERE heard = 0".format(current_book)).fetchone()
-        print("\nCurrent Title would be:")
+        print("\nCurrent Title is:")
         print(current_title)
 
         mixer.init()
-        mixer.music.load("../Audiobooks/" + current_title)  # again hardcode this to go to USB Stick
+        mixer.music.load("../../../media/pi/STICK/Audiobooks/" + current_title)  # again hardcode this to go to USB Stick
         mixer.music.play()  # starts the audio, don't worry it will get stopped at the beginning because
         while True:
             if PLAYING_PAUSED:
-                if mixer.music.get_busy():  # pauses in case when pause is pressed and music is playing
-                    mixer.music.pause()
+		print("Paused")
+		mixer.music.pause()
                 time.sleep(0.5)
             else:
-                if not mixer.get_busy():
-                    mixer.music.unpause()
-                    time.sleep(0.2)  # maybe we throw this away, just some extra time to toggle busy
-                    if not mixer.music.get_busy():  # we tried to unpause but it is still not busy --> finished
-                        break
+                print("Playing {}".format(current_title))
+                mixer.music.unpause()
+                time.sleep(0.2)  # maybe we throw this away, just some extra time to toggle busy
+                if not mixer.music.get_busy():  # we tried to unpause but it is still not busy --> finished
+                    break
                 time.sleep(0.5)
 
         set_title_heard(connection, cursor, current_title)
