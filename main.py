@@ -3,6 +3,7 @@ import sqlite3
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"  # surpresses the unnecessary output of pygame version at import.
 import time
+from datetime import datetime
 from pygame import mixer
 from gpiozero import Button
 
@@ -37,11 +38,12 @@ def initialize(connection, cursor):
     print(onUSB)
     stored = cursor.execute('SELECT name FROM Books').fetchall()
     print("\nAlready stored in DB:")
+    stored = [str(element) for element in stored]
     print(stored)
     for book in stored:
         if book not in onUSB:
-            cursor.execute('DELETE FROM Books WHERE name = ?', book)
-            cursor.execute('DROP TABLE IF EXISTS ?', book)
+            cursor.execute("DELETE FROM Books WHERE name = '{}'".format(book))
+            cursor.execute("DROP TABLE IF EXISTS '{}'".format(book))
             connection.commit()
 
     for book in onUSB:
@@ -64,7 +66,6 @@ def initialize(connection, cursor):
 
         titles = os.listdir("../../../media/pi/STICK/Audiobooks/{}".format(book))
         for title in titles:
-	    print("{}/{}".format(book, title))
             cursor.execute("""
                       INSERT OR IGNORE INTO {} (path, heard)
                       VALUES (?,?)
@@ -112,6 +113,7 @@ def set_title_heard(connection, cursor, path):
 
 def toggle_pause():
     global PLAYING_PAUSED
+    print("Playing: {} at {}".format(PLAYING_PAUSED, datetime.now().strftime("%d%m%y, %H:%M:%S")))
     PLAYING_PAUSED = not PLAYING_PAUSED
 
 
@@ -135,26 +137,34 @@ def main():
     for book in books:
         update_book_heard(connection, cursor, book)
 
-    current_book = cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone()
+    current_book = str(cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone())
     # MAIN LOOP THAT PLAYS THE TITLE
     while current_book is not None:  # no unheard books left
         print("\nCurrent Book is:")
         print(current_book)
 
-        current_title = cursor.execute("SELECT * FROM {} WHERE heard = 0".format(current_book)).fetchone()
+        current_title = str(cursor.execute("SELECT * FROM {} WHERE heard = 0 ORDER BY name ASC".format(current_book)).fetchone())
         print("\nCurrent Title is:")
         print(current_title)
 
-        mixer.init()
+        print("Before init")
+        try:
+            mixer.init()
+        except Exception as e:
+            print(e)
+            print()
+            print(e.message)
+            print
+            print(e.__doc__)
+        print("After init")
         mixer.music.load("../../../media/pi/STICK/Audiobooks/" + current_title)  # again hardcode this to go to USB Stick
+        print("Playing {}".format(current_title))
         mixer.music.play()  # starts the audio, don't worry it will get stopped at the beginning because
         while True:
             if PLAYING_PAUSED:
-		print("Paused")
-		mixer.music.pause()
+                mixer.music.pause()
                 time.sleep(0.5)
             else:
-                print("Playing {}".format(current_title))
                 mixer.music.unpause()
                 time.sleep(0.2)  # maybe we throw this away, just some extra time to toggle busy
                 if not mixer.music.get_busy():  # we tried to unpause but it is still not busy --> finished
@@ -163,7 +173,7 @@ def main():
 
         set_title_heard(connection, cursor, current_title)
         update_book_heard(connection, cursor, current_book)
-        current_book = cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone()
+        current_book = str(cursor.execute("SELECT * FROM books WHERE heard = 0").fetchone())
 
     cursor.close()
     connection.close()
